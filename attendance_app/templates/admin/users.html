@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users{% endblock %}
+
+{% block content %}
+<div class="users-container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <div>
+            <h1>User Management</h1>
+            <p>Manage all admins, teachers and students.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <a href="{{ url_for('admin.add_user') }}" class="btn">Add User</a>
+            <button type="button" class="btn" style="background:#d9534f;" onclick="deleteAllUsers()">Delete All Users</button>
+        </div>
+    </div>
+
+    <form method="get" action="{{ url_for('admin.manage_users') }}" style="margin-bottom: 20px; display:flex; gap: 10px; align-items:center;">
+        <label for="role">Filter by role:</label>
+        <select name="role" id="role" class="form-control">
+            <option value="" {% if not selected_role %}selected{% endif %}>All</option>
+            <option value="admin" {% if selected_role == 'admin' %}selected{% endif %}>Admin</option>
+            <option value="teacher" {% if selected_role == 'teacher' %}selected{% endif %}>Teacher</option>
+            <option value="student" {% if selected_role == 'student' %}selected{% endif %}>Student</option>
+        </select>
+        <button type="submit" class="btn">Apply</button>
+    </form>
+
+    {% if users.items %}
+    <div style="overflow-x:auto; background:white; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Username</th>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Full Name</th>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Email</th>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Role</th>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Status</th>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Created</th>
+                    <th style="text-align:left; padding:10px; border-bottom:1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user_item in users.items %}
+                <tr>
+                    <td style="padding:10px; border-bottom:1px solid #eee;">{{ user_item.username }}</td>
+                    <td style="padding:10px; border-bottom:1px solid #eee;">{{ user_item.full_name or '—' }}</td>
+                    <td style="padding:10px; border-bottom:1px solid #eee;">{{ user_item.email }}</td>
+                    <td style="padding:10px; border-bottom:1px solid #eee; text-transform:capitalize;">{{ user_item.role }}</td>
+                    <td style="padding:10px; border-bottom:1px solid #eee;">{{ 'Active' if user_item.is_active else 'Inactive' }}</td>
+                    <td style="padding:10px; border-bottom:1px solid #eee;">{{ user_item.created_at.strftime('%Y-%m-%d') if user_item.created_at else '—' }}</td>
+                    <td style="padding:10px; border-bottom:1px solid #eee;">
+                        {% if user_item.id != user.id %}
+                            <button type="button" class="btn" onclick="toggleStatus({{ user_item.id }}, this)">{{ 'Deactivate' if user_item.is_active else 'Activate' }}</button>
+                            <button type="button" class="btn" onclick="deleteUser({{ user_item.id }}, this)">Delete</button>
+                        {% else %}
+                            <span style="color:#888;">Current user</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top:20px; display:flex; gap:10px; align-items:center;">
+        {% if users.has_prev %}
+            <a href="{{ url_for('admin.manage_users', page=users.prev_num, role=selected_role) }}" class="btn">Previous</a>
+        {% endif %}
+        {% if users.has_next %}
+            <a href="{{ url_for('admin.manage_users', page=users.next_num, role=selected_role) }}" class="btn">Next</a>
+        {% endif %}
+    </div>
+    {% else %}
+        <div class="alert alert-info">
+            No users found. Use the Add User button to create the first user.
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    async function deleteUser(userId, button) {
+        if (!confirm('Delete this user permanently?')) {
+            return;
+        }
+
+        const response = await fetch(`{{ url_for('admin.delete_user', user_id=0) }}`.replace('/0/', `/${userId}/`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        if (response.ok && result.success) {
+            window.location.reload();
+        } else {
+            alert(result.error || 'Unable to delete user.');
+        }
+    }
+
+    async function toggleStatus(userId, button) {
+        const response = await fetch(`{{ url_for('admin.toggle_user_status', user_id=0) }}`.replace('/0/', `/${userId}/`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            window.location.reload();
+        } else {
+            alert(result.error || 'Unable to update user status.');
+        }
+    }
+
+    async function deleteAllUsers() {
+        if (!confirm('This will delete every user, including admins. Continue?')) {
+            return;
+        }
+
+        const response = await fetch('{{ url_for('admin.delete_all_users') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            alert(result.message);
+            window.location.href = '{{ url_for('auth.register') }}';
+        } else {
+            alert(result.error || 'Unable to delete all users.');
+        }
+    }
+</script>
+{% endblock %}

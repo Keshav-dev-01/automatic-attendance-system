@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Mark Attendance{% endblock %}
+
+{% block content %}
+<div class="mark-attendance-container">
+    <h1>Mark Attendance - Photo Verification</h1>
+    
+    <div class="attendance-layout">
+        <div class="photo-section">
+            <div class="camera-container">
+                <video id="video" width="320" height="240" autoplay></video>
+                <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+            </div>
+            <div class="button-group">
+                <button id="captureBtn" class="btn btn-primary">Capture Photo</button>
+                <button id="retakeBtn" class="btn btn-secondary" style="display:none;">Retake Photo</button>
+            </div>
+            <div id="capturedImage" style="display:none;">
+                <img id="photo" style="width: 320px; height: 240px; object-fit: cover;">
+            </div>
+        </div>
+        
+        <div class="student-section">
+            <h3>Select Student</h3>
+            <form id="attendanceForm">
+                <div class="form-group">
+                    <label for="student_id">Student Name / ID:</label>
+                    <select id="student_id" name="student_id" required class="form-control">
+                        <option value="">-- Select Student --</option>
+                        {% for student in students %}
+                            <option value="{{ student.id }}">
+                                {{ student.student_id }} - {{ student.user.full_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button type="button" id="submitBtn" class="btn btn-success" style="display:none;">
+                    Mark as Present
+                </button>
+            </form>
+            
+            <div id="result" style="display:none;">
+                <div id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mark-attendance-container {
+        padding: 20px;
+    }
+    
+    .attendance-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-top: 30px;
+    }
+    
+    .photo-section,
+    .student-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .camera-container {
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        aspect-ratio: 4/3;
+    }
+    
+    #video, #canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    #capturedImage {
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 15px;
+    }
+    
+    .button-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .button-group button {
+        flex: 1;
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    #result {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+    }
+    
+    .success-message {
+        background: #d4edda;
+        color: #155724;
+        padding: 15px;
+        border-radius: 5px;
+        margin-top: 15px;
+    }
+    
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 5px;
+        margin-top: 15px;
+    }
+    
+    @media (max-width: 768px) {
+        .attendance-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const captureBtn = document.getElementById('captureBtn');
+const retakeBtn = document.getElementById('retakeBtn');
+const submitBtn = document.getElementById('submitBtn');
+const capturedImage = document.getElementById('capturedImage');
+const photo = document.getElementById('photo');
+const attendanceForm = document.getElementById('attendanceForm');
+const resultDiv = document.getElementById('result');
+let capturedPhotoBlob = null;
+
+// Initialize camera
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'user' }
+        });
+        video.srcObject = stream;
+    } catch (error) {
+        console.error('Camera access error:', error);
+        alert('Unable to access camera. Please check permissions.');
+    }
+}
+
+// Capture photo
+captureBtn.addEventListener('click', () => {
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    canvas.toBlob((blob) => {
+        capturedPhotoBlob = blob;
+        photo.src = canvas.toDataURL();
+        capturedImage.style.display = 'block';
+        video.style.display = 'none';
+        captureBtn.style.display = 'none';
+        retakeBtn.style.display = 'block';
+        submitBtn.style.display = 'block';
+    });
+});
+
+// Retake photo
+retakeBtn.addEventListener('click', () => {
+    capturedImage.style.display = 'none';
+    video.style.display = 'block';
+    captureBtn.style.display = 'block';
+    retakeBtn.style.display = 'none';
+    submitBtn.style.display = 'none';
+    resultDiv.style.display = 'none';
+    capturedPhotoBlob = null;
+});
+
+// Submit attendance
+submitBtn.addEventListener('click', async () => {
+    const studentId = document.getElementById('student_id').value;
+    
+    if (!studentId) {
+        alert('Please select a student');
+        return;
+    }
+    
+    if (!capturedPhotoBlob) {
+        alert('Please capture a photo first');
+        return;
+    }
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('photo', capturedPhotoBlob, 'photo.jpg');
+    formData.append('student_id', studentId);
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Processing...';
+        
+        const response = await fetch('{{ url_for("teacher.mark_attendance") }}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        resultDiv.style.display = 'block';
+        
+        if (response.ok && data.success) {
+            resultDiv.innerHTML = `
+                <div class="success-message">
+                    <strong>✓ Success!</strong><br>
+                    ${data.message}<br>
+                    Match Score: ${(data.match_score * 100).toFixed(1)}%
+                </div>
+            `;
+            
+            // Reset form after 2 seconds
+            setTimeout(() => {
+                capturedImage.style.display = 'none';
+                video.style.display = 'block';
+                captureBtn.style.display = 'block';
+                retakeBtn.style.display = 'none';
+                submitBtn.style.display = 'none';
+                resultDiv.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Mark as Present';
+                capturedPhotoBlob = null;
+                document.getElementById('student_id').value = '';
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="error-message">
+                    <strong>✗ Error!</strong><br>
+                    ${data.error || data.message}
+                </div>
+            `;
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Mark as Present';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        resultDiv.innerHTML = `
+            <div class="error-message">
+                <strong>✗ Error!</strong><br>
+                Failed to process attendance. Please try again.
+            </div>
+        `;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Mark as Present';
+    }
+});
+
+// Initialize camera on page load
+window.addEventListener('load', initCamera);
+
+// Clean up on page unload
+window.addEventListener('beforeunload', () => {
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+    }
+});
+</script>
+{% endblock %}

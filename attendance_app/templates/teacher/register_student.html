@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Register Student{% endblock %}
+
+{% block content %}
+<div class="register-student-container">
+    <h1>Register New Student</h1>
+    <p>Capture student photo for face recognition</p>
+    
+    <div class="register-layout">
+        <div class="photo-section">
+            <div class="camera-container">
+                <video id="video" width="320" height="240" autoplay></video>
+                <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+            </div>
+            <div class="button-group">
+                <button id="captureBtn" class="btn btn-primary">Capture Photo</button>
+                <button id="retakeBtn" class="btn btn-secondary" style="display:none;">Retake Photo</button>
+            </div>
+            <input type="file" id="photoInput" name="photo" accept="image/*" style="display:none; margin-top: 15px;" />
+            <div id="cameraStatus" style="margin-top:15px; color:#444;">Loading camera...</div>
+            <div id="capturedImage" style="display:none; margin-top:15px;">
+                <img id="photo" style="width: 320px; height: 240px; object-fit: cover;">
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h3>Student Information</h3>
+            <form id="registerForm" method="POST">
+                <div class="form-group">
+                    <label for="student_id">Student ID:</label>
+                    <input type="text" id="student_id" name="student_id" required minlength="6" class="form-control" placeholder="e.g., STU001">
+                </div>
+                
+                <div class="form-group">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="Student name">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" class="form-control" placeholder="student@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Temporary Password:</label>
+                    <input type="password" id="password" name="password" minlength="6" class="form-control" placeholder="Leave empty to use Student ID">
+                </div>
+
+                <button type="button" id="submitBtn" class="btn btn-success" style="display:none;">
+                    Register Student
+                </button>
+            </form>
+            
+            <div style="margin-top:20px; padding:15px; background:#f7f8fc; border-radius:8px;">
+                <strong>Note:</strong> Student login will use the student ID as the username. If no password is entered, the student password will default to the student ID. Student ID and temporary password must each be at least 6 characters long.
+            </div>
+
+            <div id="result" style="display:none;">
+                <div id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .register-student-container {
+        padding: 20px;
+    }
+    
+    .register-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-top: 30px;
+    }
+    
+    .photo-section,
+    .info-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .camera-container {
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        aspect-ratio: 4/3;
+    }
+    
+    #video, #canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    #capturedImage {
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 15px;
+    }
+    
+    .button-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .button-group button {
+        flex: 1;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        color: #333;
+        font-weight: 500;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        width: 100%;
+    }
+    
+    #result {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+    }
+    
+    .success-message {
+        background: #d4edda;
+        color: #155724;
+        padding: 15px;
+        border-radius: 5px;
+        margin-top: 15px;
+    }
+    
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 5px;
+        margin-top: 15px;
+    }
+    
+    @media (max-width: 768px) {
+        .register-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const captureBtn = document.getElementById('captureBtn');
+const retakeBtn = document.getElementById('retakeBtn');
+const photoInput = document.getElementById('photoInput');
+const submitBtn = document.getElementById('submitBtn');
+const capturedImage = document.getElementById('capturedImage');
+const photo = document.getElementById('photo');
+const cameraStatus = document.getElementById('cameraStatus');
+const registerForm = document.getElementById('registerForm');
+const resultDiv = document.getElementById('result');
+let capturedPhotoBlob = null;
+let cameraAvailable = false;
+
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' }
+        });
+        video.srcObject = stream;
+        video.muted = true;
+        video.setAttribute('playsinline', 'true');
+        await video.play();
+        cameraAvailable = true;
+        cameraStatus.textContent = 'Camera ready. Click Capture Photo to take a picture.';
+        captureBtn.disabled = false;
+    } catch (error) {
+        console.error('Camera access error:', error);
+        cameraStatus.textContent = 'Camera unavailable. Please upload a photo file to continue.';
+        photoInput.style.display = 'block';
+        captureBtn.style.display = 'none';
+        submitBtn.style.display = 'block';
+    }
+}
+
+function updatePreviewFromFile(file) {
+    capturedPhotoBlob = null;
+    photo.src = URL.createObjectURL(file);
+    capturedImage.style.display = 'block';
+    submitBtn.style.display = 'block';
+    retakeBtn.style.display = 'block';
+    captureBtn.style.display = 'none';
+    cameraStatus.textContent = 'Photo selected. Click Register Student to submit.';
+}
+
+captureBtn.addEventListener('click', async (event) => {
+    event.preventDefault();
+
+    if (!cameraAvailable) {
+        cameraStatus.textContent = 'Camera not available. Please upload a photo file instead.';
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 240;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+        capturedPhotoBlob = blob;
+        photo.src = URL.createObjectURL(blob);
+        capturedImage.style.display = 'block';
+        video.style.display = 'none';
+        captureBtn.style.display = 'none';
+        retakeBtn.style.display = 'block';
+        submitBtn.style.display = 'block';
+        photoInput.style.display = 'none';
+        cameraStatus.textContent = 'Photo captured. Click Register Student to submit.';
+    }, 'image/jpeg', 0.9);
+});
+
+photoInput.addEventListener('change', (event) => {
+    if (event.target.files && event.target.files[0]) {
+        updatePreviewFromFile(event.target.files[0]);
+    }
+});
+
+retakeBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    capturedImage.style.display = 'none';
+    submitBtn.style.display = 'none';
+    retakeBtn.style.display = 'none';
+    resultDiv.style.display = 'none';
+    capturedPhotoBlob = null;
+    photoInput.value = '';
+
+    if (cameraAvailable) {
+        video.style.display = 'block';
+        captureBtn.style.display = 'block';
+        cameraStatus.textContent = 'Camera ready. Click Capture Photo to take a picture.';
+    } else {
+        photoInput.style.display = 'block';
+        cameraStatus.textContent = 'Please select a photo file to upload.';
+    }
+});
+
+submitBtn.addEventListener('click', async (event) => {
+    event.preventDefault();
+
+    const studentId = document.getElementById('student_id').value.trim();
+    const studentName = document.getElementById('name').value.trim();
+    const studentEmail = document.getElementById('email').value.trim();
+    const studentPassword = document.getElementById('password').value;
+
+    if (!studentId) {
+        alert('Please enter a student ID.');
+        return;
+    }
+
+    if (studentPassword && studentPassword.length < 6) {
+        alert('Temporary password must be at least 6 characters long.');
+        return;
+    }
+
+    if (!capturedPhotoBlob && (!photoInput.files || photoInput.files.length === 0)) {
+        alert('Please capture a photo or select a photo file.');
+        return;
+    }
+
+    const formData = new FormData(registerForm);
+    if (capturedPhotoBlob) {
+        formData.set('photo', capturedPhotoBlob, 'student_photo.jpg');
+    } else if (photoInput.files && photoInput.files[0]) {
+        formData.set('photo', photoInput.files[0]);
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Registering...';
+
+    try {
+        const response = await fetch('{{ url_for("teacher.register_student") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="success-message">
+                    <strong>✓ Success!</strong><br>
+                    Student ${studentId} registered successfully!
+                </div>
+            `;
+            setTimeout(() => {
+                window.location.href = '{{ url_for("teacher.attendance_records") }}';
+            }, 1500);
+        } else {
+            const message = await response.text();
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="error-message">
+                    <strong>✗ Error!</strong><br>
+                    Failed to register student. ${message}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <div class="error-message">
+                <strong>✗ Error!</strong><br>
+                Unable to submit the form. Please try again.
+            </div>
+        `;
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Register Student';
+    }
+});
+
+window.addEventListener('load', initCamera);
+
+window.addEventListener('beforeunload', () => {
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+    }
+});
+</script>
+{% endblock %}

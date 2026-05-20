@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Records{% endblock %}
+
+{% block content %}
+<div class="attendance-container">
+    <h1>Your Attendance Records</h1>
+    <p class="subtitle">Student ID: {{ student.student_id }}</p>
+    
+    {% if monthly_stats %}
+    <div class="monthly-stats">
+        <h2>Monthly Attendance Summary</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Total Days</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in monthly_stats %}
+                <tr>
+                    <td>{{ stat[0] }}</td>
+                    <td>{{ stat[1] }}</td>
+                    <td class="present-count">{{ stat[2] or 0 }}</td>
+                    <td class="absent-count">{{ stat[3] or 0 }}</td>
+                    <td>
+                        {% if stat[1] > 0 %}
+                            <strong>{{ "%.1f"|format((stat[2] or 0) / stat[1] * 100) }}%</strong>
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    <div class="detailed-records">
+        <h2>Detailed Daily Records</h2>
+        {% if records %}
+            <table class="records-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Day</th>
+                        <th>Status</th>
+                        <th>Time In</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr class="{% if record.status == 'present' %}present-row{% else %}absent-row{% endif %}">
+                        <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ record.date.strftime('%A') }}</td>
+                        <td>
+                            {% if record.status == 'present' %}
+                                <span class="badge badge-success">✓ Present</span>
+                            {% elif record.status == 'absent' %}
+                                <span class="badge badge-danger">✗ Absent</span>
+                            {% else %}
+                                <span class="badge badge-warning">⏱ Late</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ record.time_in.strftime('%H:%M:%S') if record.time_in else 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="no-data">No attendance records found.</p>
+        {% endif %}
+    </div>
+    
+    <div class="actions">
+        <a href="{{ url_for('student.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<style>
+    .subtitle {
+        color: #666;
+        margin-bottom: 30px;
+    }
+    
+    .monthly-stats,
+    .detailed-records {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+    
+    .monthly-stats h2,
+    .detailed-records h2 {
+        margin-bottom: 20px;
+        color: #333;
+    }
+    
+    .summary-table,
+    .records-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .summary-table thead,
+    .records-table thead {
+        background: #667eea;
+        color: white;
+    }
+    
+    .summary-table th,
+    .records-table th {
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+    }
+    
+    .summary-table td,
+    .records-table td {
+        padding: 12px;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .summary-table tbody tr:hover,
+    .records-table tbody tr:hover {
+        background: #f9f9f9;
+    }
+    
+    .present-row {
+        border-left: 4px solid #28a745;
+    }
+    
+    .absent-row {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .present-count {
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .absent-count {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    .badge {
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .badge-success {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .badge-danger {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .badge-warning {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .no-data {
+        text-align: center;
+        color: #999;
+        padding: 40px 20px;
+    }
+    
+    .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 30px;
+    }
+    
+    .btn-secondary {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+</style>
+{% endblock %}

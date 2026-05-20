@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}Auto Mark Attendance{% endblock %}
+
+{% block content %}
+<div class="auto-attendance-container">
+    <h1>Automatic Attendance Marking</h1>
+    <p>Students appear in front of the camera to be automatically recognized and marked present.</p>
+    
+    <div class="attendance-layout">
+        <!-- Camera and Live Feed Section -->
+        <div class="camera-section">
+            <div class="camera-container">
+                <video id="video" width="480" height="360" autoplay playsinline style="display:none;"></video>
+                <canvas id="canvas" width="480" height="360" style="display:none;"></canvas>
+                <div id="fallback-container" style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; background:#f9f9f9; padding:20px; text-align:center;">
+                    <p style="font-size:16px; margin-bottom:15px;"><strong>📷 Camera Not Available</strong></p>
+                    <p style="color:#666; margin-bottom:20px;">Upload a student photo to test face recognition</p>
+                    <label style="background:#667eea; color:white; padding:10px 20px; border-radius:5px; cursor:pointer; display:inline-block;">
+                        Choose Photo
+                        <input type="file" id="photoUpload" accept="image/*" style="display:none;">
+                    </label>
+                </div>
+            </div>
+            <div class="camera-status">
+                <p id="statusText">Starting camera...</p>
+                <p id="lastMarked" style="color:#666; font-size:14px;"></p>
+            </div>
+        </div>
+        
+        <!-- Student Info Display Section -->
+        <div class="info-section">
+            <div class="student-info-container" id="studentInfo">
+                <div class="no-student">
+                    <p>Waiting for student recognition...</p>
+                    <p style="font-size:14px; color:#888;">Position students in front of camera</p>
+                </div>
+            </div>
+            
+            <div class="stats">
+                <h3>Today's Attendance</h3>
+                <p>Total Students: <span id="totalStudents">{{ total_students }}</span></p>
+                <p>Marked Present: <span id="markedCount">0</span></p>
+                <p>Recognition Rate: <span id="recognitionRate">--</span></p>
+            </div>
+            
+            <div class="settings">
+                <label>
+                    <input type="checkbox" id="soundToggle" checked>
+                    Sound Notification
+                </label>
+                <label>
+                    <input type="checkbox" id="autoStartToggle" checked>
+                    Auto Start Recognition
+                </label>
+                <button class="btn btn-secondary" onclick="toggleCamera()">Toggle Camera</button>
+                <a href="{{ url_for('teacher.dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .auto-attendance-container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .auto-attendance-container h1 {
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    
+    .auto-attendance-container > p {
+        text-align: center;
+        color: #666;
+        margin-bottom: 30px;
+    }
+    
+    .attendance-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-top: 20px;
+    }
+    
+    .camera-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .camera-container {
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        aspect-ratio: 4/3;
+    }
+    
+    #video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .camera-status {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 5px;
+        text-align: center;
+    }
+    
+    .camera-status p {
+        margin: 5px 0;
+        font-size: 14px;
+    }
+    
+    .camera-status #statusText {
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .info-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .student-info-container {
+        background: #f0f8ff;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        padding: 30px;
+        text-align: center;
+        min-height: 150px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .student-info-container.matched {
+        background: #d4edda;
+        border-color: #28a745;
+    }
+    
+    .student-info-container .no-student {
+        color: #666;
+    }
+    
+    .student-info-container .student-details {
+        text-align: left;
+    }
+    
+    .student-details .student-id {
+        font-size: 24px;
+        font-weight: bold;
+        color: #28a745;
+        margin-bottom: 10px;
+    }
+    
+    .student-details .student-name {
+        font-size: 18px;
+        color: #333;
+        margin-bottom: 5px;
+    }
+    
+    .student-details .student-email {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 15px;
+    }
+    
+    .student-details .marked-message {
+        font-size: 16px;
+        color: #28a745;
+        font-weight: bold;
+        padding: 10px;
+        background: rgba(40, 167, 69, 0.1);
+        border-radius: 5px;
+    }
+    
+    .stats {
+        background: #f9f9f9;
+        padding: 15px;
+        border-radius: 5px;
+        border-left: 4px solid #667eea;
+    }
+    
+    .stats h3 {
+        margin-top: 0;
+        color: #333;
+    }
+    
+    .stats p {
+        margin: 8px 0;
+        font-size: 14px;
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .stats span {
+        font-weight: bold;
+        color: #667eea;
+    }
+    
+    .settings {
+        border-top: 1px solid #ddd;
+        padding-top: 15px;
+    }
+    
+    .settings label {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .settings input[type="checkbox"] {
+        margin-right: 8px;
+        cursor: pointer;
+    }
+    
+    .settings .btn {
+        width: 100%;
+        margin-top: 10px;
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    @media (max-width: 768px) {
+        .attendance-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const statusText = document.getElementById('statusText');
+const lastMarked = document.getElementById('lastMarked');
+const studentInfo = document.getElementById('studentInfo');
+const soundToggle = document.getElementById('soundToggle');
+const autoStartToggle = document.getElementById('autoStartToggle');
+const markedCount = document.getElementById('markedCount');
+const recognitionRate = document.getElementById('recognitionRate');
+
+let cameraActive = false;
+let lastRecognizedStudent = null;
+let recognitionCooldown = 0;
+const COOLDOWN_DURATION = 3000; // 3 seconds between recognitions of same student
+let markedStudents = [];
+let totalAttempts = 0;
+
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        video.muted = true;
+        video.setAttribute('playsinline', 'true');
+        await video.play();
+        cameraActive = true;
+        document.getElementById('fallback-container').style.display = 'none';
+        statusText.textContent = '✓ Camera active - Ready for recognition';
+        startRecognition();
+    } catch (error) {
+        console.error('Camera access error:', error);
+        statusText.textContent = '📷 Camera unavailable - Upload a photo instead';
+        cameraActive = false;
+        document.getElementById('fallback-container').style.display = 'flex';
+        video.style.display = 'none';
+        setupFileUpload();
+    }
+}
+
+function setupFileUpload() {
+    const photoUpload = document.getElementById('photoUpload');
+    if (!photoUpload) return;
+    
+    photoUpload.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        statusText.textContent = 'Analyzing face...';
+        const formData = new FormData();
+        formData.append('photo', file, 'frame.jpg');
+        
+        try {
+            const response = await fetch('{{ url_for("teacher.mark_attendance") }}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.matched && result.success) {
+                handleStudentRecognized(result);
+                statusText.textContent = '✓ Recognition successful';
+            } else if (result.matched && !result.success) {
+                displayStudentAlreadyMarked(result);
+                statusText.textContent = '⚠ Already marked today';
+            } else {
+                statusText.textContent = '✗ Face not recognized - Try another photo';
+                let debugText = `<p>Confidence: ${(result.score * 100).toFixed(1)}%</p>`;
+                if (result.best_student) {
+                    debugText += `<p style="font-size:11px; color:#999;">Closest: ${result.best_student} (${(result.score * 100).toFixed(1)}% < ${(result.threshold * 100).toFixed(0)}% needed)</p>`;
+                }
+                studentInfo.className = 'student-info-container';
+                studentInfo.innerHTML = `<div class="no-student"><p>No Match</p>${debugText}</div>`;
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            statusText.textContent = '✗ Error processing photo';
+        }
+        
+        // Reset file input for next upload
+        photoUpload.value = '';
+    });
+}
+
+function startRecognition() {
+    if (!cameraActive || !autoStartToggle.checked) {
+        setTimeout(startRecognition, 1000);
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    canvas.toBlob(async (blob) => {
+        try {
+            const formData = new FormData();
+            formData.append('photo', blob, 'frame.jpg');
+            
+            const response = await fetch('{{ url_for("teacher.mark_attendance") }}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            totalAttempts++;
+            const result = await response.json();
+            
+            if (result.matched && result.success) {
+                handleStudentRecognized(result);
+            } else if (result.matched && !result.success) {
+                displayStudentAlreadyMarked(result);
+            }
+        } catch (error) {
+            console.error('Recognition error:', error);
+        }
+        
+        // Continue recognition loop
+        setTimeout(startRecognition, 500);
+    }, 'image/jpeg', 0.8);
+}
+
+function handleStudentRecognized(data) {
+    // Check cooldown to avoid marking same student multiple times
+    if (lastRecognizedStudent === data.student_id && recognitionCooldown > 0) {
+        return;
+    }
+    
+    lastRecognizedStudent = data.student_id;
+    recognitionCooldown = COOLDOWN_DURATION;
+    
+    // Add to marked students if not already there
+    if (!markedStudents.includes(data.student_id)) {
+        markedStudents.push(data.student_id);
+    }
+    
+    studentInfo.className = 'student-info-container matched';
+    studentInfo.innerHTML = `
+        <div class="student-details">
+            <div class="student-id">✓ ${data.student_id}</div>
+            <div class="student-name">${data.student_name}</div>
+            <div class="student-email">${data.student_email}</div>
+            <div class="marked-message">Marked Present (${(data.score * 100).toFixed(1)}% match)</div>
+        </div>
+    `;
+    
+    lastMarked.textContent = `Last: ${data.student_id} - ${new Date().toLocaleTimeString()}`;
+    markedCount.textContent = markedStudents.length;
+    updateRecognitionRate();
+    
+    playNotificationSound();
+    
+    // Keep display for 3 seconds then revert
+    setTimeout(() => {
+        studentInfo.className = 'student-info-container';
+        studentInfo.innerHTML = `
+            <div class="no-student">
+                <p>Waiting for next student...</p>
+                <p style="font-size:14px; color:#888;">Next student can approach</p>
+            </div>
+        `;
+    }, 3000);
+    
+    // Decrement cooldown
+    let remaining = COOLDOWN_DURATION;
+    const cooldownInterval = setInterval(() => {
+        remaining -= 100;
+        if (remaining <= 0) {
+            recognitionCooldown = 0;
+            clearInterval(cooldownInterval);
+        }
+    }, 100);
+}
+
+function displayStudentAlreadyMarked(data) {
+    studentInfo.className = 'student-info-container';
+    studentInfo.innerHTML = `
+        <div class="student-details">
+            <div class="student-id">${data.student_id}</div>
+            <div class="student-name">${data.student_name}</div>
+            <div style="padding: 10px; background: #fff3cd; border-radius: 5px; margin-top: 10px; color: #856404;">
+                Already marked present today
+            </div>
+        </div>
+    `;
+}
+
+function playNotificationSound() {
+    if (!soundToggle.checked) return;
+    
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (error) {
+        console.log('Audio notification not available');
+    }
+}
+
+function updateRecognitionRate() {
+    if (totalAttempts > 0) {
+        const rate = ((markedStudents.length / totalAttempts) * 100).toFixed(1);
+        recognitionRate.textContent = `${rate}%`;
+    }
+}
+
+function toggleCamera() {
+    if (cameraActive) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        cameraActive = false;
+        statusText.textContent = '✗ Camera stopped';
+    } else {
+        initCamera();
+    }
+}
+
+window.addEventListener('load', initCamera);
+
+window.addEventListener('beforeunload', () => {
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+    }
+});
+</script>
+{% endblock %}

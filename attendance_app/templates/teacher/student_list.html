@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Student List{% endblock %}
+
+{% block content %}
+<div class="student-list-container">
+    <h1>Student List</h1>
+    <p>Search students by ID, name, username, or email; filter by today's attendance status.</p>
+
+    <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center;">
+        <input type="text" name="search" placeholder="Search students..." value="{{ search }}" class="form-control" style="flex:1; min-width:220px;">
+        <select name="status" class="form-control" style="width:220px;">
+            <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
+            <option value="present" {% if status_filter == 'present' %}selected{% endif %}>Present</option>
+            <option value="absent" {% if status_filter == 'absent' %}selected{% endif %}>Absent</option>
+            <option value="unmarked" {% if status_filter == 'unmarked' %}selected{% endif %}>Unmarked</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    {% if students %}
+    <div style="overflow-x:auto;">
+        <table class="attendance-table" style="width:100%;">
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in students %}
+                <tr>
+                    <td>{{ row.student.student_id }}</td>
+                    <td>{{ row.student.user.full_name or '—' }}</td>
+                    <td>{{ row.login_username }}</td>
+                    <td>{{ row.login_email }}</td>
+                    <td style="text-transform:capitalize;">{{ row.status or 'unmarked' }}</td>
+                    <td>
+                        <a href="{{ url_for('teacher.student_profile', student_id=row.student.id) }}" class="btn btn-secondary">View Profile</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="alert alert-info">No students found.</div>
+    {% endif %}
+
+    <div style="margin-top:20px;">
+        <a href="{{ url_for('teacher.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<style>
+    .student-list-container {
+        padding: 20px;
+    }
+    .attendance-table th,
+    .attendance-table td {
+        padding: 12px;
+        border-bottom: 1px solid #ddd;
+    }
+    .attendance-table thead {
+        background: #667eea;
+        color: white;
+    }
+    .form-control {
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+    }
+</style>
+{% endblock %}
