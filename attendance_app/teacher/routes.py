@@ -98,27 +98,22 @@ def mark_attendance():
                     photo_path=photo_path
                 )
                 db.session.add(attendance)
-                db.session.commit()
-                
-                return jsonify({
-                    'matched': True,
-                    'success': True,
-                    'student_id': best_match.student_id,
-                    'student_name': best_match.user.full_name or best_match.student_id,
-                    'student_email': best_match.user.email,
-                    'score': best_score,
-                    'message': f'✓ {best_match.student_id} marked present'
-                })
             else:
-                return jsonify({
-                    'matched': True,
-                    'success': False,
-                    'student_id': best_match.student_id,
-                    'student_name': best_match.user.full_name or best_match.student_id,
-                    'student_email': best_match.user.email,
-                    'score': best_score,
-                    'message': f'Already marked present today'
-                })
+                existing.status = 'present'
+                existing.time_in = datetime.now()
+                existing.photo_path = photo_path
+                attendance = existing
+            db.session.commit()
+            
+            return jsonify({
+                'matched': True,
+                'success': True,
+                'student_id': best_match.student_id,
+                'student_name': best_match.user.full_name or best_match.student_id,
+                'student_email': best_match.user.email,
+                'score': best_score,
+                'message': f'✓ {best_match.student_id} marked present'
+            })
         else:
             # Return best attempt even if below threshold (for debugging)
             return jsonify({
